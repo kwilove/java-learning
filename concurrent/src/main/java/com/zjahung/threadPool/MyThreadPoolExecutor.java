@@ -5,49 +5,38 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 自定义线程池
+ * 自定义实现的线程池
  *
  * @author zjhuang
  * @create 2018/9/20 10:55
  **/
 public class MyThreadPoolExecutor extends MyAbstractExecutorService {
-    /**
-     * 核心线程数
-     */
+    /** 核心线程数 */
     private volatile int corePoolSize;
-    /**
-     * 最大线程数
-     */
+    /** 最大线程数 */
     private volatile int maximumPoolSize;
-    /**
-     * 多余空闲线程保持存活的时间
-     */
+    /** 多余空闲线程保持存活的时间 */
     private volatile long keepAliveTime;
-    /**
-     * 存活时间单位
-     */
+    /** 存活时间单位 */
     private volatile TimeUnit unit;
-    /**
-     * 任务等待队列
-     */
+    /** 任务等待队列 */
     private final BlockingQueue<Runnable> workQueue;
-    /**
-     * 任务拒绝策略
-     */
+    /** 任务拒绝策略 */
     private volatile RejectedExecutionHandler handler;
-    /**
-     * 是否允许核心线程在超出存活时间后关闭
-     */
+    /** 是否允许核心线程在超出存活时间后关闭 */
     private volatile boolean allowCoreThreadTimeOut;
-    /**
-     * 当前线程池中线程数
-     */
+
+    public int getActiveThreadCount() {
+        return activeThreadCount.get();
+    }
+
+    /** 当前线程池中线程数 */
     private AtomicInteger activeThreadCount = new AtomicInteger(0);
     private ReentrantLock mainLock = new ReentrantLock();
 
     public MyThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit
             , BlockingQueue<Runnable> workQueue) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, new ThreadPoolExecutor.AbortPolicy());
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, new ThreadPoolExecutor.DiscardPolicy());
     }
 
     public MyThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit
@@ -84,11 +73,13 @@ public class MyThreadPoolExecutor extends MyAbstractExecutorService {
     }
 
     private boolean addWorker(Runnable firstTask, boolean core) {
+        if (firstTask == null && workQueue.isEmpty()) {
+            return false;
+        }
         if (activeThreadCount.get() >= (core ? corePoolSize : maximumPoolSize)) {
             return false;
         }
-        Worker w = null;
-        w = new Worker(firstTask);
+        Worker w = new Worker(firstTask);
         final Thread t = w.thread;
         if (t != null) {
             t.start();
@@ -130,6 +121,9 @@ public class MyThreadPoolExecutor extends MyAbstractExecutorService {
         }
 
         private void processWorkerExit(Worker w) {
+            if (!addWorker(null, false)) {
+                activeThreadCount.decrementAndGet();
+            }
         }
 
         private Runnable getTask() {
