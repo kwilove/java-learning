@@ -11,26 +11,37 @@ import java.util.concurrent.locks.ReentrantLock;
  * @create 2018/9/20 10:55
  **/
 public class MyThreadPoolExecutor extends MyAbstractExecutorService {
-    /** 核心线程数 */
+    /**
+     * 核心线程数
+     */
     private volatile int corePoolSize;
-    /** 最大线程数 */
+    /**
+     * 最大线程数
+     */
     private volatile int maximumPoolSize;
-    /** 多余空闲线程保持存活的时间 */
+    /**
+     * 多余空闲线程保持存活的时间
+     */
     private volatile long keepAliveTime;
-    /** 存活时间单位 */
+    /**
+     * 存活时间单位
+     */
     private volatile TimeUnit unit;
-    /** 任务等待队列 */
+    /**
+     * 任务等待队列
+     */
     private final BlockingQueue<Runnable> workQueue;
-    /** 任务拒绝策略 */
+    /**
+     * 任务拒绝策略
+     */
     private volatile RejectedExecutionHandler handler;
-    /** 是否允许核心线程在超出存活时间后关闭 */
+    /**
+     * 是否允许核心线程在超出存活时间后关闭
+     */
     private volatile boolean allowCoreThreadTimeOut;
-
-    public int getActiveThreadCount() {
-        return activeThreadCount.get();
-    }
-
-    /** 当前线程池中线程数 */
+    /**
+     * 当前线程池中线程数
+     */
     private AtomicInteger activeThreadCount = new AtomicInteger(0);
     private ReentrantLock mainLock = new ReentrantLock();
 
@@ -62,7 +73,6 @@ public class MyThreadPoolExecutor extends MyAbstractExecutorService {
             }
         }
         if (workQueue.offer(runnable)) {
-
         } else if (!addWorker(runnable, false)) {
             reject(runnable);
         }
@@ -82,8 +92,9 @@ public class MyThreadPoolExecutor extends MyAbstractExecutorService {
         Worker w = new Worker(firstTask);
         final Thread t = w.thread;
         if (t != null) {
-            t.start();
             activeThreadCount.incrementAndGet();
+            System.out.println("+" + activeThreadCount.get());
+            t.start();
         }
         return true;
     }
@@ -122,16 +133,18 @@ public class MyThreadPoolExecutor extends MyAbstractExecutorService {
 
         private void processWorkerExit(Worker w) {
             if (!addWorker(null, false)) {
-                activeThreadCount.decrementAndGet();
             }
         }
 
         private Runnable getTask() {
             for (; ; ) {
-                if (workQueue.isEmpty()) {
+                int threadCount = activeThreadCount.get();
+                boolean timed = allowCoreThreadTimeOut || threadCount > corePoolSize;
+                if (timed && workQueue.isEmpty()) {
+                    activeThreadCount.decrementAndGet();
+                    System.out.println("-" + activeThreadCount.get());
                     return null;
                 }
-                boolean timed = allowCoreThreadTimeOut;
                 try {
                     Runnable r = timed ?
                             workQueue.poll(keepAliveTime, unit) :
@@ -145,4 +158,31 @@ public class MyThreadPoolExecutor extends MyAbstractExecutorService {
             }
         }
     }
+
+    /**
+     * 获取线程池中的活跃线程数量
+     *
+     * @return
+     */
+    public int getActiveThreadCount() {
+        return activeThreadCount.get();
+    }
+
+    /**
+     * 控制核心线程是否启用存活时间机制
+     *
+     * @param value
+     */
+    public void allowCoreThreadTimeOut(boolean value) {
+        if (value && keepAliveTime <= 0) {
+            throw new IllegalArgumentException("核心线程存活时间必须大于0");
+        }
+        if (value != allowCoreThreadTimeOut) {
+            allowCoreThreadTimeOut = value;
+            if (value) {
+                // TODO 实现停止空闲的核心线程
+            }
+        }
+    }
+
 }
