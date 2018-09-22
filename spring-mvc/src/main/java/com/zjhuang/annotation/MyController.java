@@ -3,11 +3,11 @@ package com.zjhuang.annotation;
 import java.lang.annotation.*;
 
 /**
- * Created by Administrator on 2018/8/2 12:27.
+ * Created by Administrator on 2018/8/2 12:23.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ElementType.TYPE})
 @Documented
-public @interface SdRequestMapping {
+public @interface MyController {
     String value() default "";
 }

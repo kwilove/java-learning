@@ -1,7 +1,7 @@
 package com.zjhuang.servlet;
 
-import com.zjhuang.annotation.SdController;
-import com.zjhuang.annotation.SdService;
+import com.zjhuang.annotation.MyController;
+import com.zjhuang.annotation.MyService;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -11,7 +11,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,11 +56,14 @@ public class MyDispatchServlet extends HttpServlet {
 
     @Override
     public void init(ServletConfig config) throws ServletException {
-
         // 1、加载配置文件
         doConfig(config.getInitParameter("contextConfiguration"));
         // 2、扫描所有相关类
-        doScanner(contextConfig.getProperty("scan.package"));
+        try {
+            doScanner(contextConfig.getProperty("scan.package"));
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
         // 3、初始化刚才扫描到的类，并存入IOC容器中
         try {
             doInject();
@@ -87,23 +92,27 @@ public class MyDispatchServlet extends HttpServlet {
             return;
         }
         for (String className : classNameList) {
-            Class<?> aClass = Class.forName(className);
-            Object object = aClass.newInstance();
-            if (aClass.isAnnotationPresent(SdController.class)) {
-                String name = lowerFirstChar(aClass.getName());
+            Class<?> clazz = Class.forName(className);
+            if (clazz.isAnnotation() || clazz.isInterface()) {
+                continue;
+            }
+            Object object = clazz.newInstance();
+            if (clazz.isAnnotationPresent(MyController.class)) {
+                String name = lowerFirstChar(clazz.getSimpleName());
                 ioc.put(name, object);
-            } else if (aClass.isAnnotationPresent(SdService.class)) {
-                SdService sdService = aClass.getAnnotation(SdService.class);
-                String value = sdService.value();
+            } else if (clazz.isAnnotationPresent(MyService.class)) {
+                MyService myService = clazz.getAnnotation(MyService.class);
+                String value = myService.value();
                 if ("".equals(value)) {
-                    String name = lowerFirstChar(aClass.getName());
+                    String name = lowerFirstChar(clazz.getSimpleName());
                     ioc.put(name, object);
                 } else {
                     ioc.put(value, object);
                 }
-                Class<?>[] interfaces = aClass.getInterfaces();
+                Class<?>[] interfaces = clazz.getInterfaces();
                 for (Class<?> anInterface : interfaces) {
-
+                    String name = lowerFirstChar(anInterface.getSimpleName());
+                    ioc.put(name, object);
                 }
             }
         }
@@ -148,9 +157,10 @@ public class MyDispatchServlet extends HttpServlet {
      *
      * @param scanPackage
      */
-    private void doScanner(String scanPackage) {
+    private void doScanner(String scanPackage) throws UnsupportedEncodingException {
         URL url = this.getClass().getClassLoader().getResource("/" + scanPackage.replaceAll("\\.", "/"));
-        File classPathDir = new File(url.getFile());
+        String filePath = URLDecoder.decode(url.getFile(), "UTF8");
+        File classPathDir = new File(filePath);
         for (File file : classPathDir.listFiles()) {
             if (file.isDirectory()) {
                 doScanner(scanPackage + "." + file.getName());
