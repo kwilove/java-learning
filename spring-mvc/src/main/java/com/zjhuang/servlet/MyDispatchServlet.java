@@ -36,12 +36,43 @@ public class MyDispatchServlet extends HttpServlet {
      */
     private List<String> classNameList = new ArrayList<String>();
     /**
-     * Spring IOC容器
+     * Spring IOC容器，管理spring bean实例
      */
     private HashMap<String, Object> ioc = new HashMap<String, Object>();
-
+    /**
+     * 保存每个requestMapping对应controller、method和parameters签名序列映射关系的集合
+     */
     private List<Handler> handlerMapping = new ArrayList<Handler>();
 
+    @Override
+    public void init(ServletConfig config) throws ServletException {
+        // 1、加载配置文件
+        doConfig(config.getInitParameter("contextConfiguration"));
+        // 2、扫描所有相关类
+        try {
+            doScanner(contextConfig.getProperty("scan.package"));
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        // 3、初始化刚才扫描到的类，并存入IOC容器中
+        try {
+            doCreateBean();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        }
+        // 4、自动注入
+        try {
+            doInject();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        // 5、初始化handlerMapping，并交由spring管理
+        doHandlerMapping();
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -85,10 +116,15 @@ public class MyDispatchServlet extends HttpServlet {
         }
 
         System.out.println("Execute : " + handler.method.toString());
-        Object result = handler.method.invoke(handler.instance, args);
+        Object result = handler.method.invoke(handler.controller, args);
         resp.getWriter().write(result.toString());
     }
 
+    /**
+     * 由请求的url获取对象的handler处理器
+     * @param uri
+     * @return
+     */
     private Handler getHandler(String uri) {
         for (Handler handler : handlerMapping) {
             if (handler.urlPattern.matcher(uri).matches()) {
@@ -98,90 +134,44 @@ public class MyDispatchServlet extends HttpServlet {
         return null;
     }
 
-    @Override
-    public void init(ServletConfig config) throws ServletException {
-        // 1、加载配置文件
-        doConfig(config.getInitParameter("contextConfiguration"));
-        // 2、扫描所有相关类
+    /**
+     * 加载配置
+     *
+     * @param contextConfiguration
+     */
+    private void doConfig(String contextConfiguration) {
+        InputStream in = this.getClass().getClassLoader().getResourceAsStream(contextConfiguration);
         try {
-            doScanner(contextConfig.getProperty("scan.package"));
-        } catch (UnsupportedEncodingException e) {
+            contextConfig.load(in);
+        } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            if (null != in) {
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
-        // 3、初始化刚才扫描到的类，并存入IOC容器中
-        try {
-            doCreateBean();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        }
-        // 4、自动注入
-        try {
-            doInject();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        }
-        // 5、初始化handlerMapping，并交由spring管理
-        doHandlerMapping();
-
     }
 
     /**
-     * 处理 requestMapper 和 handler 映射
+     * 扫描相关包
+     *
+     * @param scanPackage
      */
-    private void doHandlerMapping() {
-        if (ioc == null) {return;}
-
-        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
-            Object controller = entry.getValue();
-            if (!controller.getClass().isAnnotationPresent(MyController.class)) {
+    private void doScanner(String scanPackage) throws UnsupportedEncodingException {
+        URL url = this.getClass().getClassLoader().getResource("/" + scanPackage.replaceAll("\\.", "/"));
+        String filePath = URLDecoder.decode(url.getFile(), "UTF8");
+        File classPathDir = new File(filePath);
+        for (File file : classPathDir.listFiles()) {
+            if (file.isDirectory()) {
+                doScanner(scanPackage + "." + file.getName());
                 continue;
             }
-            MyRequestMapping controllerRequestMapping = controller.getClass().getAnnotation(MyRequestMapping.class);
-            String controllerUrl = "";
-            if (controllerRequestMapping != null) {
-                controllerUrl = controllerRequestMapping.value();
-            }
-            Method[] methods = controller.getClass().getMethods();
-            for (Method method : methods) {
-                if (!method.isAnnotationPresent(MyRequestMapping.class)) {
-                    continue;
-                }
-                MyRequestMapping methodRequestMapping = method.getAnnotation(MyRequestMapping.class);
-                String methodUrl = methodRequestMapping.value();
-                String regex = "/" + controllerUrl + methodUrl;
-                if (regex.isEmpty()) {
-                    System.err.println(method.getName() + " request mapping is not null");
-                    continue;
-                }
-                regex = regex.replaceAll("/+", "/");
-                Pattern pattern = Pattern.compile(regex);
-                handlerMapping.add(new Handler(pattern, controller, method));
-                System.out.println("Mapping : [" + regex +  "] - " + method);
-            }
-        }
-    }
-
-    /**
-     * 依赖注入
-     */
-    private void doInject() throws IllegalAccessException {
-        if (ioc.isEmpty()) {return;}
-        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
-            Object bean = entry.getValue();
-            for (Field field : bean.getClass().getDeclaredFields()) {
-                field.setAccessible(true);
-                if (field.isAnnotationPresent(MyAutowired.class)) {
-                    String name = field.getType().getName();
-                    field.set(bean, ioc.get(name));
-                } else if (field.isAnnotationPresent(MyResource.class)) {
-                    String name = field.getName();
-                    field.set(bean, ioc.get(name));
-                }
-            }
+            String className = scanPackage + "." + file.getName().replace(".class", "");
+            classNameList.add(className);
         }
     }
 
@@ -229,6 +219,61 @@ public class MyDispatchServlet extends HttpServlet {
     }
 
     /**
+     * 依赖注入
+     */
+    private void doInject() throws IllegalAccessException {
+        if (ioc.isEmpty()) {return;}
+        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
+            Object bean = entry.getValue();
+            for (Field field : bean.getClass().getDeclaredFields()) {
+                field.setAccessible(true);
+                if (field.isAnnotationPresent(MyAutowired.class)) {
+                    String name = field.getType().getName();
+                    field.set(bean, ioc.get(name));
+                } else if (field.isAnnotationPresent(MyResource.class)) {
+                    String name = field.getName();
+                    field.set(bean, ioc.get(name));
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理 requestMapper 和 handler 映射
+     */
+    private void doHandlerMapping() {
+        if (ioc == null) {return;}
+        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
+            Object controller = entry.getValue();
+            if (!controller.getClass().isAnnotationPresent(MyController.class)) {
+                continue;
+            }
+            MyRequestMapping controllerRequestMapping = controller.getClass().getAnnotation(MyRequestMapping.class);
+            String controllerUrl = "";
+            if (controllerRequestMapping != null) {
+                controllerUrl = controllerRequestMapping.value();
+            }
+            Method[] methods = controller.getClass().getMethods();
+            for (Method method : methods) {
+                if (!method.isAnnotationPresent(MyRequestMapping.class)) {
+                    continue;
+                }
+                MyRequestMapping methodRequestMapping = method.getAnnotation(MyRequestMapping.class);
+                String methodUrl = methodRequestMapping.value();
+                String regex = "/" + controllerUrl + methodUrl;
+                if (regex.isEmpty()) {
+                    System.err.println(method.getName() + " request mapping is not null");
+                    continue;
+                }
+                regex = regex.replaceAll("/+", "/");
+                Pattern pattern = Pattern.compile(regex);
+                handlerMapping.add(new Handler(pattern, controller, method));
+                System.out.println("Mapping : [" + regex +  "] - " + method);
+            }
+        }
+    }
+
+    /**
      * 字符串首字母小写
      *
      * @param className
@@ -241,56 +286,19 @@ public class MyDispatchServlet extends HttpServlet {
     }
 
     /**
-     * 加载配置
-     *
-     * @param contextConfiguration
+     * 保存每个requestMapping匹配的controller类、method方法以及方法参数签名序列的实体
+     * 1、在servlet拦截到request请求后根据url找到对象的handler对象，
+     * 2、使用handler保存的method、controller和parameters签名序列通过反射机制的invoke方法执行方法业务。
      */
-    private void doConfig(String contextConfiguration) {
-        InputStream in = this.getClass().getClassLoader().getResourceAsStream(contextConfiguration);
-        try {
-            contextConfig.load(in);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (null != in) {
-                try {
-                    in.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    /**
-     * 扫描相关包
-     *
-     * @param scanPackage
-     */
-    private void doScanner(String scanPackage) throws UnsupportedEncodingException {
-        URL url = this.getClass().getClassLoader().getResource("/" + scanPackage.replaceAll("\\.", "/"));
-        String filePath = URLDecoder.decode(url.getFile(), "UTF8");
-        File classPathDir = new File(filePath);
-        for (File file : classPathDir.listFiles()) {
-            if (file.isDirectory()) {
-                doScanner(scanPackage + "." + file.getName());
-                continue;
-            }
-            String className = scanPackage + "." + file.getName().replace(".class", "");
-            classNameList.add(className);
-        }
-    }
-
-
     class Handler {
         private Pattern urlPattern;
-        private Object instance;
+        private Object controller;
         private Method method;
         private Map<String, Integer> paramIndexMapping;
 
-        public Handler(Pattern urlPattern,Object instance, Method method) {
+        public Handler(Pattern urlPattern,Object controller, Method method) {
             this.urlPattern = urlPattern;
-            this.instance = instance;
+            this.controller = controller;
             this.method = method;
             putParamIndexMapping(method);
         }
@@ -301,7 +309,15 @@ public class MyDispatchServlet extends HttpServlet {
             Parameter[] parameters = method.getParameters();
             for (int i = 0; i < parameters.length; i++) {
                 Parameter param = parameters[i];
+                /*
+                 * 一般情况下此处getName方法获取是获取不到类成员方法的参数列表名称的。
+                 * 因为在JDK 8之前，编译后的.class文件不保存方法参数的实际名称，而是使用arg0、arg1、arg2表示，
+                 * 在JDK 8中默认也是不开启在.class文件中写入实际名称的功能，需要在编译.java文件时加上-parameters参数，
+                 * 如：javac -parameters *.java。
+                 * TODO 后续需要解决此处的问题，尽可能第兼容JDK 8之前的版本
+                 */
                 String paramName = param.getName();
+                // 如果方法参数声明了@MyRequestParam注解，优先使用注解定义的value作为参数名称
                 if (param.isAnnotationPresent(MyRequestParam.class)) {
                     MyRequestParam requestParam = param.getAnnotation(MyRequestParam.class);
                     paramName = "".equals(requestParam.value()) ? paramName : requestParam.value();
