@@ -1,4 +1,4 @@
-package com.zjhuang.annotation;
+package com.zjhuang.springmvc.annotation;
 
 import java.lang.annotation.*;
 

@@ -1,4 +1,4 @@
-package com.zjhuang.service;
+package com.zjhuang.springmvc.service;
 
 /**
  * @author zjhuang

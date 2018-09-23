@@ -1,13 +1,13 @@
-package com.zjhuang.annotation;
+package com.zjhuang.springmvc.annotation;
 
 import java.lang.annotation.*;
 
 /**
- * Created by Administrator on 2018/8/2 12:23.
+ * Created by Administrator on 2018/8/2 12:30.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
 @Documented
-public @interface MyController {
+public @interface MyService {
     String value() default "";
 }

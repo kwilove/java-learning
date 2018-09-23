@@ -1,7 +1,7 @@
-package com.zjhuang.service.impl;
+package com.zjhuang.springmvc.service.impl;
 
-import com.zjhuang.annotation.MyService;
-import com.zjhuang.service.IIndexService;
+import com.zjhuang.springmvc.annotation.MyService;
+import com.zjhuang.springmvc.service.IIndexService;
 
 /**
  * @author zjhuang

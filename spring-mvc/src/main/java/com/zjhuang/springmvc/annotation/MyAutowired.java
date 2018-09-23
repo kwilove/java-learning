@@ -1,4 +1,4 @@
-package com.zjhuang.annotation;
+package com.zjhuang.springmvc.annotation;
 
 import java.lang.annotation.*;
 
@@ -9,5 +9,4 @@ import java.lang.annotation.*;
 @Target({ElementType.FIELD})
 @Documented
 public @interface MyAutowired {
-    String value() default "";
 }
