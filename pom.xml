@@ -11,6 +11,7 @@
     <modules>
         <module>concurrent</module>
         <module>spring-mvc</module>
+        <module>algorithm</module>
     </modules>
 
     <properties>
