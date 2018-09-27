@@ -133,11 +133,11 @@ public class MyDispatchServlet extends HttpServlet {
         for (int i = 0; i < handler.parameterNames.length; i++) {
             MethodArgsEntity argsEntity = handler.parameterNames[i];
             if (HttpServletRequest.class.getName().equals(argsEntity.name)) {
-                args[i] = req;
+                args[argsEntity.index] = req;
                 continue;
             }
             if (HttpServletResponse.class.getName().equals(argsEntity.name)) {
-                args[i] = resp;
+                args[argsEntity.index] = resp;
                 continue;
             }
             String[] temp = reqParamMap.get(argsEntity.name);
@@ -146,7 +146,7 @@ public class MyDispatchServlet extends HttpServlet {
                 return;
             } else {
                 // 如果请求的参数列表中存在同名参数，读取最后一个同名参数的值
-                args[i] = null == temp || temp.length == 0 ? null : temp[temp.length - 1];
+                args[argsEntity.index] = null == temp || temp.length == 0 ? null : temp[temp.length - 1];
             }
         }
         System.out.println("Execute : " + handler.method.toString());
