@@ -2,10 +2,12 @@ package com.zjhuang.servlet;
 
 import com.zjhuang.modelandview.MyModelAndView;
 import com.zjhuang.springmvc.annotation.*;
+import com.zjhuang.utils.JavassistUtils;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import freemarker.template.TemplateExceptionHandler;
+import javassist.NotFoundException;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -126,24 +128,27 @@ public class MyDispatchServlet extends HttpServlet {
             resp.getWriter().write("404 Not Found");
             return;
         }
-        Object[] args = new Object[handler.paramIndexMapping.size()];
-        for (Map.Entry<String, String[]> param : req.getParameterMap().entrySet()) {
-            if (!handler.paramIndexMapping.containsKey(param.getKey())) {
+        Object[] args = new Object[handler.parameterNames.length];
+        Map<String, String[]> reqParamMap = req.getParameterMap();
+        for (int i = 0; i < handler.parameterNames.length; i++) {
+            MethodArgsEntity argsEntity = handler.parameterNames[i];
+            if (HttpServletRequest.class.getName().equals(argsEntity.name)) {
+                args[i] = req;
                 continue;
             }
-            String value = param.getValue()[param.getValue().length - 1];
-            int index = handler.paramIndexMapping.get(param.getKey());
-            args[index] = value;
+            if (HttpServletResponse.class.getName().equals(argsEntity.name)) {
+                args[i] = resp;
+                continue;
+            }
+            String[] temp = reqParamMap.get(argsEntity.name);
+            if (argsEntity.require && null == temp) {
+                resp.getWriter().write(String.format("500 Not found parameter \"%s\"", argsEntity.name));
+                return;
+            } else {
+                // 如果请求的参数列表中存在同名参数，读取最后一个同名参数的值
+                args[i] = null == temp || temp.length == 0 ? null : temp[temp.length - 1];
+            }
         }
-        Integer reqIndex = handler.paramIndexMapping.get(HttpServletRequest.class.getName());
-        if (reqIndex != null) {
-            args[reqIndex] = req;
-        }
-        Integer respIndex = handler.paramIndexMapping.get(HttpServletResponse.class.getName());
-        if (respIndex != null) {
-            args[respIndex] = resp;
-        }
-
         System.out.println("Execute : " + handler.method.toString());
         Object result = handler.method.invoke(handler.controller, args);
         // 模板引擎渲染返回HTML
@@ -346,7 +351,7 @@ public class MyDispatchServlet extends HttpServlet {
         private Pattern urlPattern;
         private Object controller;
         private Method method;
-        private Map<String, Integer> paramIndexMapping;
+        private MethodArgsEntity[] parameterNames;
 
         public Handler(Pattern urlPattern, Object controller, Method method) {
             this.urlPattern = urlPattern;
@@ -357,32 +362,51 @@ public class MyDispatchServlet extends HttpServlet {
 
         private void putParamIndexMapping(Method method) {
             // 提取方法参数列表
-            paramIndexMapping = new HashMap<String, Integer>();
+            this.parameterNames = new MethodArgsEntity[method.getParameterCount()];
+            /*
+             * 一般情况下此处getName方法获取是获取不到类成员方法的参数列表名称的。
+             * 因为在JDK 8之前，编译后的.class文件不保存方法参数的实际名称，而是使用arg0、arg1、arg2表示，
+             * 在JDK 8中默认也是不开启在.class文件中写入实际名称的功能，需要在编译.java文件时加上-parameters参数，
+             * 如：javac -parameters *.java。
+             * 解决方法：下面使用javassist字节码技术获取类方法参数列表的实际名称
+             */
+
             Parameter[] parameters = method.getParameters();
+            String[] javassistParamNames = new String[0];
+            try {
+                javassistParamNames = JavassistUtils.getMethodParamNames(method);
+            } catch (NotFoundException e) {
+                e.printStackTrace();
+            }
             for (int i = 0; i < parameters.length; i++) {
-                Parameter param = parameters[i];
-                /*
-                 * 一般情况下此处getName方法获取是获取不到类成员方法的参数列表名称的。
-                 * 因为在JDK 8之前，编译后的.class文件不保存方法参数的实际名称，而是使用arg0、arg1、arg2表示，
-                 * 在JDK 8中默认也是不开启在.class文件中写入实际名称的功能，需要在编译.java文件时加上-parameters参数，
-                 * 如：javac -parameters *.java。
-                 * TODO 后续需要解决此处的问题，尽可能第兼容JDK 8之前的版本
-                 */
-                String paramName = param.getName();
+                // 提取方法參數中的HttpServletRequest和HttpServletResponse
+                if (parameters[i].getType() == HttpServletRequest.class
+                        || parameters[i].getType() == HttpServletResponse.class) {
+                    this.parameterNames[i] = new MethodArgsEntity(parameters[i].getType().getName(), i, true);
+                    continue;
+                }
+
+                this.parameterNames[i] = new MethodArgsEntity(javassistParamNames[i], i, false);
                 // 如果方法参数声明了@MyRequestParam注解，优先使用注解定义的value作为参数名称
-                if (param.isAnnotationPresent(MyRequestParam.class)) {
-                    MyRequestParam requestParam = param.getAnnotation(MyRequestParam.class);
-                    paramName = "".equals(requestParam.value()) ? paramName : requestParam.value();
-                }
-                this.paramIndexMapping.put(paramName, i);
-            }
-            // 提取方法參數中的HttpServletRequest和HttpServletResponse
-            Class<?>[] parameterTypes = method.getParameterTypes();
-            for (int i = 0; i < parameterTypes.length; i++) {
-                if (parameterTypes[i] == HttpServletRequest.class || parameterTypes[i] == HttpServletResponse.class) {
-                    this.paramIndexMapping.put(parameterTypes[i].getName(), i);
+                if (parameters[i].isAnnotationPresent(MyRequestParam.class)) {
+                    MyRequestParam requestParam = parameters[i].getAnnotation(MyRequestParam.class);
+                    if (!"".equals(requestParam.value())) {
+                        this.parameterNames[i] = new MethodArgsEntity(requestParam.value(), i, requestParam.required());
+                    }
                 }
             }
+        }
+    }
+
+    class MethodArgsEntity {
+        private String name;
+        private int index;
+        private boolean require;
+
+        public MethodArgsEntity(String name, int index, boolean require) {
+            this.name = name;
+            this.index = index;
+            this.require = require;
         }
     }
 }
