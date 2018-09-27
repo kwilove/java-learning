@@ -4,6 +4,7 @@ import com.zjhuang.springmvc.annotation.MyAutowired;
 import com.zjhuang.springmvc.annotation.MyController;
 import com.zjhuang.springmvc.annotation.MyRequestMapping;
 import com.zjhuang.springmvc.annotation.MyRequestParam;
+import com.zjhuang.modelandview.MyModelAndView;
 import com.zjhuang.springmvc.service.IIndexService;
 
 /**
@@ -17,9 +18,11 @@ public class IndexController {
     private IIndexService indexService;
 
     @MyRequestMapping(value = "/")
-    public String index(@MyRequestParam(value = "name") String name) {
+    public MyModelAndView index(@MyRequestParam(value = "name") String name) {
+        MyModelAndView mv = new MyModelAndView("/index.html");
         indexService.printStr(name);
-        return indexService.prependPrefix(name, "Hello,");
+        mv.getModels().put("name", name);
+        return mv;
     }
 
 }

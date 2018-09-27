@@ -1,6 +1,11 @@
 package com.zjhuang.servlet;
 
+import com.zjhuang.modelandview.MyModelAndView;
 import com.zjhuang.springmvc.annotation.*;
+import freemarker.template.Configuration;
+import freemarker.template.Template;
+import freemarker.template.TemplateException;
+import freemarker.template.TemplateExceptionHandler;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -43,9 +48,13 @@ public class MyDispatchServlet extends HttpServlet {
      * 保存每个requestMapping对应controller、method和parameters签名序列映射关系的集合
      */
     private List<Handler> handlerMapping = new ArrayList<Handler>();
+    /**
+     * freemarker模板配置
+     */
+    private Configuration templateConfig;
 
     @Override
-    public void init(ServletConfig config) throws ServletException {
+    public void init(ServletConfig config) {
         // 1、加载配置文件
         doConfig(config.getInitParameter("contextConfiguration"));
         // 2、扫描所有相关类
@@ -72,6 +81,22 @@ public class MyDispatchServlet extends HttpServlet {
         }
         // 5、初始化handlerMapping，并交由spring管理
         doHandlerMapping();
+        // 加载模板引擎
+        loadTemplateConfig(config);
+    }
+
+    private void loadTemplateConfig(ServletConfig servletConfig) {
+        if (null == templateConfig) {
+            templateConfig = new Configuration(Configuration.VERSION_2_3_23);
+            templateConfig.setDefaultEncoding("UTF-8");
+            templateConfig.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
+            try {
+                templateConfig.setDirectoryForTemplateLoading(
+                        new File(servletConfig.getServletContext().getRealPath("/")));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
@@ -86,12 +111,16 @@ public class MyDispatchServlet extends HttpServlet {
             doDispatcher(req, resp);
         } catch (Exception e) {
             e.printStackTrace();
-            resp.getWriter().write("500 Server Exception");
+            resp.getWriter().write("500 Server Exception\n" + e.toString());
         }
     }
 
     private void doDispatcher(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
         String uri = req.getRequestURI().replace(req.getContextPath(), "").replaceAll("/+", "/");
+        String faviconIco = "/favicon.ico";
+        if (faviconIco.equals(uri)) {
+            return;
+        }
         Handler handler = getHandler(uri);
         if (handler == null) {
             resp.getWriter().write("404 Not Found");
@@ -117,11 +146,28 @@ public class MyDispatchServlet extends HttpServlet {
 
         System.out.println("Execute : " + handler.method.toString());
         Object result = handler.method.invoke(handler.controller, args);
-        resp.getWriter().write(result.toString());
+        // 模板引擎渲染返回HTML
+        try {
+            processResult(result, resp);
+        } catch (TemplateException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void processResult(Object result, HttpServletResponse resp) throws IOException, TemplateException {
+        if (result instanceof MyModelAndView) {
+            MyModelAndView modelAndView = (MyModelAndView) result;
+            Template template = templateConfig.getTemplate(modelAndView.getViewName());
+            resp.setContentType("text/html;charset=utf-8");
+            resp.setCharacterEncoding("UTF-8");
+            resp.setStatus(200);
+            template.process(modelAndView.getModels(), resp.getWriter());
+        }
     }
 
     /**
      * 由请求的url获取对象的handler处理器
+     *
      * @param uri
      * @return
      */
@@ -183,7 +229,9 @@ public class MyDispatchServlet extends HttpServlet {
      * @throws InstantiationException
      */
     private void doCreateBean() throws ClassNotFoundException, IllegalAccessException, InstantiationException {
-        if (classNameList.isEmpty()) {return;}
+        if (classNameList.isEmpty()) {
+            return;
+        }
 
         for (String className : classNameList) {
             Class<?> clazz = Class.forName(className);
@@ -222,7 +270,9 @@ public class MyDispatchServlet extends HttpServlet {
      * 依赖注入
      */
     private void doInject() throws IllegalAccessException {
-        if (ioc.isEmpty()) {return;}
+        if (ioc.isEmpty()) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : ioc.entrySet()) {
             Object bean = entry.getValue();
             for (Field field : bean.getClass().getDeclaredFields()) {
@@ -242,7 +292,9 @@ public class MyDispatchServlet extends HttpServlet {
      * 处理 requestMapper 和 handler 映射
      */
     private void doHandlerMapping() {
-        if (ioc == null) {return;}
+        if (ioc == null) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : ioc.entrySet()) {
             Object controller = entry.getValue();
             if (!controller.getClass().isAnnotationPresent(MyController.class)) {
@@ -268,7 +320,7 @@ public class MyDispatchServlet extends HttpServlet {
                 regex = regex.replaceAll("/+", "/");
                 Pattern pattern = Pattern.compile(regex);
                 handlerMapping.add(new Handler(pattern, controller, method));
-                System.out.println("Mapping : [" + regex +  "] - " + method);
+                System.out.println("Mapping : [" + regex + "] - " + method);
             }
         }
     }
@@ -296,7 +348,7 @@ public class MyDispatchServlet extends HttpServlet {
         private Method method;
         private Map<String, Integer> paramIndexMapping;
 
-        public Handler(Pattern urlPattern,Object controller, Method method) {
+        public Handler(Pattern urlPattern, Object controller, Method method) {
             this.urlPattern = urlPattern;
             this.controller = controller;
             this.method = method;
