@@ -364,11 +364,11 @@ public class MyDispatchServlet extends HttpServlet {
             // 提取方法参数列表
             this.parameterNames = new MethodArgsEntity[method.getParameterCount()];
             /*
-             * 一般情况下此处getName方法获取是获取不到类成员方法的参数列表名称的。
-             * 因为在JDK 8之前，编译后的.class文件不保存方法参数的实际名称，而是使用arg0、arg1、arg2表示，
-             * 在JDK 8中默认也是不开启在.class文件中写入实际名称的功能，需要在编译.java文件时加上-parameters参数，
+             * 一般情况下此处Parameter类实例的getName方法获取是获取不到类成员方法的参数列表名称的。
+             * 因为在jdk1.8之前，编译后的.class文件不保存方法参数的实际名称，而是使用arg0、arg1、arg2表示，
+             * 在jdk1.8中默认也是不开启在.class文件中写入实际名称的功能，需要在编译.java文件时加上-parameters参数，
              * 如：javac -parameters *.java。
-             * 解决方法：下面使用javassist字节码技术获取类方法参数列表的实际名称
+             * 解决方法：下面使用javassist字节码技术获取类方法参数列表的实际名称，兼容jdk1.8及之前的版本
              */
 
             Parameter[] parameters = method.getParameters();
