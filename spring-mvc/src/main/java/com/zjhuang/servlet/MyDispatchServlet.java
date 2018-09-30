@@ -172,17 +172,20 @@ public class MyDispatchServlet extends HttpServlet {
 
     /**
      * 由请求的url获取对象的handler处理器
+     * 优先识别精确匹配，如果不存在则使用模糊匹配，都不存在返回NULL
      *
      * @param uri
      * @return
      */
     private Handler getHandler(String uri) {
-        for (Handler handler : handlerMapping) {
-            if (handler.urlPattern.matcher(uri).matches()) {
-                return handler;
+        Handler handler = null;
+        for (Handler h : handlerMapping) {
+            if (h.urlPattern.pattern().equals(uri)) {
+                return h;
             }
+            handler = null == handler && h.urlPattern.matcher(uri).matches() ? handler : null;
         }
-        return null;
+        return handler;
     }
 
     /**
@@ -318,7 +321,8 @@ public class MyDispatchServlet extends HttpServlet {
                 MyRequestMapping methodRequestMapping = method.getAnnotation(MyRequestMapping.class);
                 String methodUrl = methodRequestMapping.value();
                 String regex = "/" + controllerUrl + methodUrl;
-                if (regex.isEmpty()) {
+                // 对RequestMapper的value做非空校验
+                if ("/".equals(regex)) {
                     System.err.println(method.getName() + " request mapping is not null");
                     continue;
                 }
