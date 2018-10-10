@@ -10,7 +10,6 @@ import freemarker.template.TemplateExceptionHandler;
 import javassist.NotFoundException;
 
 import javax.servlet.ServletConfig;
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -102,22 +101,22 @@ public class MyDispatchServlet extends HttpServlet {
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         this.doPost(req, resp);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         // 6、执行doDispatcher
         try {
-            doDispatcher(req, resp);
+            doDispatch(req, resp);
         } catch (Exception e) {
             e.printStackTrace();
             resp.getWriter().write("500 Server Exception\n" + e.toString());
         }
     }
 
-    private void doDispatcher(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
+    private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
         String uri = req.getRequestURI().replace(req.getContextPath(), "").replaceAll("/+", "/");
         String faviconIco = "/favicon.ico";
         if (faviconIco.equals(uri)) {
@@ -141,15 +140,31 @@ public class MyDispatchServlet extends HttpServlet {
                 continue;
             }
             String[] temp = reqParamMap.get(argsEntity.name);
-            if (argsEntity.require && null == temp) {
+            if (argsEntity.required && null == temp) {
                 resp.getWriter().write(String.format("500 Not found parameter \"%s\"", argsEntity.name));
                 return;
             } else {
                 // 如果请求的参数列表中存在同名参数，读取最后一个同名参数的值
-                args[argsEntity.index] = null == temp || temp.length == 0 ? null : temp[temp.length - 1];
+                String lastTemp = null == temp || temp.length == 0 ? null : temp[temp.length - 1];
+                Object value = lastTemp;
+                // 参数类型解析
+                if (null != value) {
+                    Class<?> clazz = handler.parameterNames[i].type;
+                    if (clazz == Integer.class || clazz == int.class) {
+                        value = Integer.parseInt(lastTemp);
+                    } else if (clazz == Long.class || clazz == long.class) {
+                        value = Long.parseLong(lastTemp);
+                    } else if (clazz == Short.class || clazz == short.class) {
+                        value = Short.parseShort(lastTemp);
+                    } else if (clazz == Boolean.class || clazz == boolean.class) {
+                        value = Boolean.parseBoolean(lastTemp);
+                    }
+                }
+                args[argsEntity.index] = value;
             }
         }
         System.out.println("Execute : " + handler.method.toString());
+        // 反射执行handler方法
         Object result = handler.method.invoke(handler.controller, args);
         // 模板引擎渲染返回HTML
         try {
@@ -386,16 +401,19 @@ public class MyDispatchServlet extends HttpServlet {
                 // 提取方法參數中的HttpServletRequest和HttpServletResponse
                 if (parameters[i].getType() == HttpServletRequest.class
                         || parameters[i].getType() == HttpServletResponse.class) {
-                    this.parameterNames[i] = new MethodArgsEntity(parameters[i].getType().getName(), i, true);
+                    this.parameterNames[i] =
+                            new MethodArgsEntity(parameters[i].getType().getName(), i, parameters[i].getType(), true);
                     continue;
                 }
 
-                this.parameterNames[i] = new MethodArgsEntity(javassistParamNames[i], i, false);
+                this.parameterNames[i] = new MethodArgsEntity(javassistParamNames[i], i, parameters[i].getType(), true);
                 // 如果方法参数声明了@MyRequestParam注解，优先使用注解定义的value作为参数名称
                 if (parameters[i].isAnnotationPresent(MyRequestParam.class)) {
                     MyRequestParam requestParam = parameters[i].getAnnotation(MyRequestParam.class);
                     if (!"".equals(requestParam.value())) {
-                        this.parameterNames[i] = new MethodArgsEntity(requestParam.value(), i, requestParam.required());
+                        this.parameterNames[i] = new MethodArgsEntity(requestParam.value(), i, parameters[i].getType(), requestParam.required());
+                    } else {
+                        this.parameterNames[i] = new MethodArgsEntity(javassistParamNames[i], i, parameters[i].getType(), requestParam.required());
                     }
                 }
             }
@@ -405,12 +423,14 @@ public class MyDispatchServlet extends HttpServlet {
     class MethodArgsEntity {
         private String name;
         private int index;
-        private boolean require;
+        private Class<?> type;
+        private boolean required;
 
-        public MethodArgsEntity(String name, int index, boolean require) {
+        public MethodArgsEntity(String name, int index, Class<?> type, boolean require) {
             this.name = name;
             this.index = index;
-            this.require = require;
+            this.type = type;
+            this.required = require;
         }
     }
 }
