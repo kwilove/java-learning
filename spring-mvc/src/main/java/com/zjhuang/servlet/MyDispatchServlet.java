@@ -34,15 +34,15 @@ public class MyDispatchServlet extends HttpServlet {
     /**
      * 扫描指定包下所有类的className
      */
-    private List<String> classNameList = new ArrayList<String>();
+    private List<String> classNameList = new ArrayList<>();
     /**
      * Spring IOC容器，管理spring bean实例
      */
-    private HashMap<String, Object> ioc = new HashMap<String, Object>();
+    private HashMap<String, Object> ioc = new HashMap<>();
     /**
      * 保存每个requestMapping对应controller、method和parameters签名序列映射关系的集合
      */
-    private List<Handler> handlerMapping = new ArrayList<Handler>();
+    private List<Handler> handlerMapping = new ArrayList<>();
 
     @Override
     public void init(ServletConfig config) throws ServletException {

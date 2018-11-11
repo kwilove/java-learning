@@ -12,6 +12,7 @@
         <module>concurrent</module>
         <module>spring-mvc</module>
         <module>algorithm</module>
+        <module>netty</module>
     </modules>
 
     <properties>
