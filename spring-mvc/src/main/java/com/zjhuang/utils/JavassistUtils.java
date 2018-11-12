@@ -35,6 +35,7 @@ public class JavassistUtils {
                 .getMethodInfo()
                 .getCodeAttribute()
                 .getAttribute(LocalVariableAttribute.tag);
+        // 非static方法，存在一个缺省参数this，作为参数列表的第一位
         int pos = Modifier.isStatic(ctMethod.getModifiers()) ? 0 : 1;
         String[] paramNames = new String[ctMethod.getParameterTypes().length];
         for (int i = 0; i < ctMethod.getParameterTypes().length; i++) {
