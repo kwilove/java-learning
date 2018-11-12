@@ -8,7 +8,7 @@ package com.zjhuang.排序算法;
  **/
 public class SelectionSort extends AbstractSort {
     /*
-     * @实现原理：
+     * @算法步骤：
      * 1、首先从未排序序列中寻找最小元素，放入到排序序列的起始位置，
      * 2、然后接着从剩下的未排序序列中寻找最小元素放入到已排序序列末尾位置，
      * 3、直到所有元素都加入到排序序列中为止。
