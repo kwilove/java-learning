@@ -8,7 +8,7 @@ import java.util.concurrent.CountDownLatch;
  * @author zjhuang
  * @create 2018/9/20 14:40
  **/
-public class ThreadUtils {
+public class ThreadGenerator {
 
     public static void createAndStart(int nThreads, Runnable task) {
         final CountDownLatch countDownLatch1 = new CountDownLatch(1);
@@ -18,9 +18,10 @@ public class ThreadUtils {
                 try {
                     countDownLatch1.await();
                     task.run();
-                    countDownLatch2.countDown();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
+                } finally {
+                    countDownLatch2.countDown();
                 }
             }).start();
         }
