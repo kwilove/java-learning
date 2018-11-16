@@ -1,4 +1,4 @@
-package com.zjhuang.client.handler;
+package com.zjhuang.netty.client.handler;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;

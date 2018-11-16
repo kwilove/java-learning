@@ -1,4 +1,4 @@
-package com.zjhuang.server.handler;
+package com.zjhuang.netty.server.handler;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
