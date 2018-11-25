@@ -1,6 +1,6 @@
-package com.zjhuang.client;
+package com.zjhuang.netty.client;
 
-import com.zjhuang.client.handler.EchoClientHandler;
+import com.zjhuang.netty.client.handler.EchoClientHandler;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;

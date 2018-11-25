@@ -1,6 +1,6 @@
-package com.zjhuang.server;
+package com.zjhuang.netty.server;
 
-import com.zjhuang.server.handler.EchoServerHandler;
+import com.zjhuang.netty.server.handler.EchoServerHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
