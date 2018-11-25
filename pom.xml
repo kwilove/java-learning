@@ -13,6 +13,7 @@
         <module>spring-mvc</module>
         <module>algorithm</module>
         <module>netty</module>
+        <module>netty-rpc</module>
     </modules>
 
     <properties>
