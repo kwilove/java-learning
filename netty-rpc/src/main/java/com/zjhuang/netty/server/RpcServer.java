@@ -8,8 +8,6 @@ import com.zjhuang.netty.handler.RpcServerHandler;
 import com.zjhuang.netty.registry.RpcServiceRegistry;
 import com.zjhuang.serialize.Serializer;
 import com.zjhuang.serialize.impl.ProtobufSerializer;
-import com.zjhuang.service.ICalculateService;
-import com.zjhuang.service.impl.CalculateServiceImpl;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -39,16 +37,6 @@ public class RpcServer {
         this.port = port;
     }
 
-    public void init(RpcServiceRegistry rpcServiceRegistry) throws InterruptedException {
-        new Thread(() -> {
-            try {
-                this.start(rpcServiceRegistry);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
     public void start(RpcServiceRegistry rpcServiceRegistry) throws InterruptedException {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -74,17 +62,6 @@ public class RpcServer {
             workerGroup.shutdownGracefully();
             bossGroup.shutdownGracefully();
         }
-    }
-
-    public static void main(String[] args) throws Exception {
-        int port = 8080;
-        if (args.length > 0) {
-            port = Integer.parseInt(args[0]);
-        }
-
-        RpcServiceRegistry rpcServiceRegistry = new RpcServiceRegistry();
-        rpcServiceRegistry.registerService(ICalculateService.class, new CalculateServiceImpl());
-        new RpcServer(port).init(rpcServiceRegistry);
     }
 
 }

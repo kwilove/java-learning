@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
+import java.util.concurrent.SynchronousQueue;
 
 /**
  * 计算服务代理类
@@ -22,9 +23,15 @@ public class CalculateServiceProxy implements ICalculateService {
     private RpcClient client;
 
     public CalculateServiceProxy(String host, int port) {
-        client = new RpcClient();
+        String url = host + ":" + port;
+        if (RpcClient.clientPool.containsKey(url)) {
+            this.client = RpcClient.clientPool.get(url);
+        } else {
+            this.client = new RpcClient();
+            RpcClient.clientPool.put(url, this.client);
+        }
         try {
-            client.connect(host, port);
+            this.client.connect(host, port);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -81,12 +88,13 @@ public class CalculateServiceProxy implements ICalculateService {
     private RpcResponse sendRpcRequest(RpcRequest request) {
         RpcResponse response = null;
         try {
+            RpcClient.rpcResponseQueues.put(request.getId(), new SynchronousQueue<>());
             this.client.channel.writeAndFlush(request).sync();
-            response = RpcClient.responseQueue.take();
-            System.out.println(response);
+            response = RpcClient.rpcResponseQueues.get(request.getId()).take();
         } catch (Exception e) {
             logger.error(response.getCause());
         }
         return response;
     }
+
 }

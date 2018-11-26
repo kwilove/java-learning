@@ -5,7 +5,6 @@ import com.zjhuang.entity.RpcResponse;
 import com.zjhuang.netty.decode.RpcDecode;
 import com.zjhuang.netty.encode.RpcEncode;
 import com.zjhuang.netty.handler.RpcClientHandler;
-import com.zjhuang.netty.proxy.CalculateServiceProxy;
 import com.zjhuang.serialize.Serializer;
 import com.zjhuang.serialize.impl.ProtobufSerializer;
 import io.netty.bootstrap.Bootstrap;
@@ -14,6 +13,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.SynchronousQueue;
 
 /**
@@ -28,36 +29,42 @@ public class RpcClient {
 
     private Serializer serializer = new ProtobufSerializer();
 
-    public static SynchronousQueue<RpcResponse> responseQueue = new SynchronousQueue<>();
+    public static final Map<String, RpcClient> clientPool = new ConcurrentHashMap<>();
 
+    public static final Map<String, SynchronousQueue<RpcResponse>> rpcResponseQueues = new ConcurrentHashMap<>();
+
+    /**
+     * 建立与目标RPC服务的通道
+     *
+     * @param host 服务主机地址
+     * @param port 服务端口
+     * @throws InterruptedException
+     */
     public void connect(String host, int port) throws InterruptedException {
         EventLoopGroup group = new NioEventLoopGroup();
-        try {
-            Bootstrap bootstrap = new Bootstrap();
-            bootstrap.group(group)
-                    .channel(NioSocketChannel.class)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel socketChannel) throws Exception {
-                            socketChannel.pipeline()
-                                    .addLast(new RpcEncode(RpcRequest.class, serializer))
-                                    .addLast(new RpcDecode(RpcResponse.class, serializer))
-                                    .addLast(new RpcClientHandler());
-                        }
-                    })
-                    .option(ChannelOption.TCP_NODELAY, true)
-                    .option(ChannelOption.SO_REUSEADDR, true)
-                    .option(ChannelOption.SO_KEEPALIVE, true);
-            ChannelFuture future = bootstrap.connect(host, port).sync();
-            this.channel = future.channel().closeFuture().sync().channel();
-        } finally {
-            group.shutdownGracefully();
-        }
+        Bootstrap bootstrap = new Bootstrap();
+        bootstrap.group(group)
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel socketChannel) {
+                        socketChannel.pipeline()
+                                .addLast(new RpcEncode(RpcRequest.class, serializer))
+                                .addLast(new RpcDecode(RpcResponse.class, serializer))
+                                .addLast(new RpcClientHandler());
+                    }
+                })
+                .option(ChannelOption.TCP_NODELAY, true)
+                .option(ChannelOption.SO_REUSEADDR, true)
+                .option(ChannelOption.SO_KEEPALIVE, true);
+        this.channel = bootstrap.connect(host, port).sync().channel();
     }
 
-    public static void main(String[] args) throws Exception {
-        String host = "127.0.0.1";
-        int port = 8080;
-        new CalculateServiceProxy(host, port).add(1.0, 2.0);
+    public void close() {
+        if (null != this.channel) {
+            if (this.channel.isOpen()) {
+                this.channel.close();
+            }
+        }
     }
 }

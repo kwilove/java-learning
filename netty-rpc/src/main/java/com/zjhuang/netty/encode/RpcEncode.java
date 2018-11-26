@@ -11,7 +11,7 @@ import io.netty.handler.codec.MessageToByteEncoder;
  * @author zjhuang
  * @create 2018/11/25 15:04
  **/
-public class RpcEncode extends MessageToByteEncoder {
+public class RpcEncode extends MessageToByteEncoder<Object> {
     /**
      * 泛型类
      */
