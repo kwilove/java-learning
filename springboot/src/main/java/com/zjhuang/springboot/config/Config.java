@@ -40,7 +40,7 @@ public class Config {
         // 设置Fliter匹配规则
         registration.addUrlPatterns("/*");
         // 设置排序，在存在多个Filter实例的情况下确定Filter的执行顺序
-        registration.setOrder(1);
+        registration.setOrder(2);
         return registration;
     }
 
@@ -63,7 +63,7 @@ public class Config {
         // 设置Servlet配置规则
         registration.addUrlMappings("/second_servlet");
         // 设置加载参数
-        registration.setLoadOnStartup(1);
+        registration.setLoadOnStartup(2);
         return registration;
     }
 
@@ -81,7 +81,7 @@ public class Config {
         // 注册Listener
         registration.setListener(listener);
         // 设置排序，在存在多个Listener实例的情况下确定Listener的执行顺序
-        registration.setOrder(1);
+        registration.setOrder(2);
         return registration;
     }
 
