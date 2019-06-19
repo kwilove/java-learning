@@ -13,6 +13,7 @@
         <module>springmvc</module>
         <module>algorithm</module>
         <module>springboot</module>
+        <module>spring</module>
     </modules>
 
     <properties>
