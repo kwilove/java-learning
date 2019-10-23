@@ -1,4 +1,4 @@
-package com.zjahung.threadPool;
+package com.zjahung.threadpool;
 
 /**
  * 自定义执行器接口

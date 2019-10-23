@@ -1,4 +1,4 @@
-package com.zjahung.threadPool;
+package com.zjahung.threadpool;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;

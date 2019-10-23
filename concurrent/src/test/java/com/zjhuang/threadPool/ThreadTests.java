@@ -1,7 +1,7 @@
 package com.zjhuang.threadPool;
 
-import com.zjahung.threadPool.MyExecutorService;
-import com.zjahung.threadPool.MyThreadPoolExecutor;
+import com.zjahung.threadpool.MyExecutorService;
+import com.zjahung.threadpool.MyThreadPoolExecutor;
 import org.junit.Test;
 
 import java.util.concurrent.ArrayBlockingQueue;
