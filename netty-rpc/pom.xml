@@ -12,7 +12,7 @@
     <artifactId>netty-rpc</artifactId>
 
     <properties>
-        <netty.version>4.1.31.Final</netty.version>
+        <netty.version>4.1.42.Final</netty.version>
         <protostuff.version>1.6.0</protostuff.version>
     </properties>
 
